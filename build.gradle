@@ -1,0 +1,29 @@
+
+apply plugin: "java"
+repositories {
+	mavenCentral()
+}
+
+
+buildscript {
+	repositories {
+		mavenCentral()
+	}
+
+	dependencies {
+		classpath 'org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.3'
+	}
+}
+
+// ************************************************************************************************
+// SOURCE SETS
+// ************************************************************************************************
+
+dependencies {
+
+	// Jars needed to compile web app, include them in war file
+
+	compile group: 'org.bytedeco', name: 'javacv-platform', version: '1.4'
+
+	
+}
