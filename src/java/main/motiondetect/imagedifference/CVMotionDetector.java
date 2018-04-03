@@ -15,7 +15,10 @@ import org.bytedeco.javacv.OpenCVFrameGrabber;
 import static org.bytedeco.javacpp.opencv_core.*;
 import static org.bytedeco.javacpp.opencv_highgui.*;
 import static org.bytedeco.javacpp.opencv_imgproc.*;
-
+/*
+ * By comparing current frame and previous frame (the grayscale ones...)
+ * 
+ * if the intensity of a pixel is large enough, then we will marked it as 255, else 0*/
 public class CVMotionDetector {
 
 	private static final int LOW_THRESHOLD = 64;

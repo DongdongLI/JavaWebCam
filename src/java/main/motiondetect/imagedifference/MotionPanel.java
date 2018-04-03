@@ -11,11 +11,13 @@ import javax.swing.JPanel;
 
 import org.bytedeco.javacpp.opencv_core.IplImage;
 import org.bytedeco.javacpp.opencv_core.Point;
-import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameGrabber;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.bytedeco.javacv.OpenCVFrameConverter;
-
+/*
+ * MotionPanel will keep snapping pictures and send to CVMotionDector to check if there's any motion
+ * 
+ * If that's the case, crosshair will be put at the center of gravity*/
 public class MotionPanel extends JPanel implements Runnable{
 
 	private static final int DELAY = 100;
@@ -137,14 +139,6 @@ public class MotionPanel extends JPanel implements Runnable{
 	}
 	
 	private IplImage grabPicture(FrameGrabber grabber, int ID) {
-//		Frame frame = null;
-//		try {
-//			frame = grabber.grab();
-//		} catch(Exception e) {
-//			System.out.println("Problem grabbing image for: "+ID);
-//		}
-//		return converter.convert(frame);
-		//return CVMotionDetector.convertFrameToGrayScale(converter.convert(frame));
 		
 		IplImage im = null;
 	    try {
