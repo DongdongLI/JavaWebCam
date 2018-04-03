@@ -1,37 +1,48 @@
+package motiondetect.imagedifference;
+
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.image.BufferedImage;
+import java.io.File;
 
+import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 
 import org.bytedeco.javacpp.opencv_core.IplImage;
+import org.bytedeco.javacpp.opencv_core.Point;
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameGrabber;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.bytedeco.javacv.OpenCVFrameConverter;
 
-import motiondetect.imagedifference.CVMotionDetector;
-
-public class Snapper extends JPanel implements Runnable{
+public class MotionPanel extends JPanel implements Runnable{
 
 	private static final int DELAY = 100;
 	private static final int DELAY_BEFORE_SHUTTIN_DOWN = 500;
 	private static final int DEFAULT_CAMERA_ID =1;
+	private static final int MIN_MOVE_REPORT = 3; 
 	private static final int HEIGHT = 640;
 	private static final int WEIGHT = 480;
 	
 	private volatile boolean isRunning;
 	private volatile boolean isFinished;
-	private volatile boolean takeCurrentPic;
+
+	private Point precCogPoint;
+	private Point cogPoint;
+	private BufferedImage crosshairs;
 	
 	OpenCVFrameConverter.ToIplImage converter;
 	Java2DFrameConverter frameConverter;
 	IplImage image;
 	
-	public Snapper(){
+	public MotionPanel(){
+		converter = new OpenCVFrameConverter.ToIplImage();
+		frameConverter = new Java2DFrameConverter();
+		
 		setBackground(Color.white);
-		new Thread(this).start(); // start updating the panel's image
+		crosshairs = loadImage("crosshairs.png");
+		new Thread(this).start(); 
 	}
 	
 	
@@ -47,19 +58,28 @@ public class Snapper extends JPanel implements Runnable{
 		if(grabber == null)
 			return;
 		
+		image = grabPicture(grabber, DEFAULT_CAMERA_ID);
+		CVMotionDetector motionDetector = new CVMotionDetector(image);
+		//JCVMotionDetector motionDetector = new JCVMotionDetector(image);
+		Point pt;
+		
 		long duration;
 		int snapCount = 0;
 		
 		isRunning = true;
 		isFinished = false;
-		takeCurrentPic = false;
 		
 		while(isRunning) {
 			image = grabPicture(grabber, DEFAULT_CAMERA_ID);
 			
-			if(takeCurrentPic) {
-				// save the photo
-				takeCurrentPic = false;
+			motionDetector.calculateMovie(image);
+			//motionDetector.calcMove(image);
+			pt = motionDetector.getCOG();
+			//pt = motionDetector.findCOG(image);
+			if(pt != null) {
+				precCogPoint = cogPoint;
+				cogPoint = pt;
+				reportCOGChanges(cogPoint, precCogPoint);
 			}
 			
 			repaint();
@@ -76,11 +96,29 @@ public class Snapper extends JPanel implements Runnable{
 		isFinished = true;
 	}
 	
+	private void reportCOGChanges(Point cogPoint, Point precCogPoint) {
+		// TODO Auto-generated method stub
+		if(precCogPoint == null) return;
+		
+		int xStep = cogPoint.x() - precCogPoint.x();
+		int yStep = -1 * (cogPoint.y() - precCogPoint.y());
+		
+		int distance = (int)Math.round(Math.sqrt(xStep*xStep + yStep*yStep ));
+		
+		int angle = (int) Math.round(
+				Math.toDegrees(
+						Math.atan2(yStep, xStep)));
+		
+		if(distance > MIN_MOVE_REPORT) {
+			System.out.println("COG: ("+cogPoint.x()+", "+cogPoint.y()+")");
+			System.out.println("Distance Moved: "+distance+", angle: "+angle);
+		}
+	}
+
+
 	private FrameGrabber initGrabber() {
 		FrameGrabber grabber = null;
-		converter = new OpenCVFrameConverter.ToIplImage();
-		frameConverter = new Java2DFrameConverter();
-		
+				
 		try {
 			grabber = FrameGrabber.createDefault(DEFAULT_CAMERA_ID);
 			grabber.setFormat("dshow");
@@ -99,14 +137,22 @@ public class Snapper extends JPanel implements Runnable{
 	}
 	
 	private IplImage grabPicture(FrameGrabber grabber, int ID) {
-		Frame frame = null;
-		try {
-			frame = grabber.grab();
-		} catch(Exception e) {
-			System.out.println("Problem grabbing image for: "+ID);
-		}
-		return converter.convert(frame);
+//		Frame frame = null;
+//		try {
+//			frame = grabber.grab();
+//		} catch(Exception e) {
+//			System.out.println("Problem grabbing image for: "+ID);
+//		}
+//		return converter.convert(frame);
 		//return CVMotionDetector.convertFrameToGrayScale(converter.convert(frame));
+		
+		IplImage im = null;
+	    try {
+	      im = converter.convert(grabber.grab());  // take a snap
+	    }
+	    catch(Exception e) 
+	    {  System.out.println("Problem grabbing image for camera " + ID);  }
+	    return im;
 	}
 	
 	private void closeGrabber(FrameGrabber grabber, int ID) {
@@ -124,6 +170,13 @@ public class Snapper extends JPanel implements Runnable{
 		if(image != null) {
 			g.setColor(Color.YELLOW);
 			g.drawImage( frameConverter.getBufferedImage( converter.convert(image)) ,0 ,0, this);
+			
+			if(cogPoint != null) {
+				// if there is a cog, draw cross bar
+				drawCrosshairs(g, cogPoint.x(), cogPoint.y());
+			}
+			
+			g.setColor(Color.YELLOW);
 		}
 		else {
 			g.setColor(Color.BLUE);
@@ -131,8 +184,26 @@ public class Snapper extends JPanel implements Runnable{
 		}
 	}
 	
-	public void takeSnap() {
-		takeCurrentPic = true;
+	private BufferedImage loadImage(String fileName) {
+		BufferedImage img = null;
+		try {
+			img = ImageIO.read(new File(fileName));
+			System.out.println("Reading file "+fileName+"...");
+		}catch(Exception e) {
+			System.out.println("File not found.");
+		}
+		
+		return img;
+	}
+	
+	private void drawCrosshairs(Graphics g, int x, int y) {
+		if(crosshairs != null ) {
+			g.drawImage(crosshairs, x - crosshairs.getWidth()/2, y - crosshairs.getHeight()/2, this);
+		}
+		else {
+			g.setColor(Color.RED);
+			g.fillOval(x-10, y-10, 20, 20);
+		}
 	}
 	
 	public void closeDown() {
